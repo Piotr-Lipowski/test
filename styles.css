@@ -1,0 +1,19 @@
+body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  overflow: hidden;
+  background-color: aqua;
+}
+.nav{
+  width: 100vw;
+  height: 500px;
+  display: flex;
+  flex-flow: row-reverse;
+  background-color: mediumaquamarine;
+}
+.avatar{
+  width: 800px;
+  height: 400px;
+  background-color: aquamarine;
+}

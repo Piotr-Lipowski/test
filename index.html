@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=UTF-8/>
+    <link rel="stylesheet" type="text/css" href="styles.css"/>
+</head>
+<body>
+    <div class="nav">
+        <div class="avatar"></div>
+    </div>
+
+    <script id="vertexShader" type="x-shader/x-vertex">
+    varying vec2 vUv;
+
+    void main() {
+        vUv = uv;
+
+        gl_Position =   projectionMatrix *
+                        modelViewMatrix *
+                        vec4(position,1.0);
+    }
+    </script>
+
+    <script id="fragmentShader" type="x-shader/x-fragment">
+    uniform sampler2D texture1;
+
+    varying vec2 vUv;
+
+    void main() {
+        gl_FragColor = vec4(0.5, 0.2, 1.0, 1.0);
+    }
+    </script>
+    <script src="three.min.js"></script>
+    <script src="GLTFLoader.js"></script>
+    <script src="FBXLoader.js"></script>
+    <script src="fflate.min.js"></script>
+    <script src="OrbitControls.js"></script>
+    <script>
+        let scene, camera, renderer;
+
+        function init() {
+            renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+            renderer.setClearColor( 0x000000, 0 ); // the default
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            let avatarHook = document.querySelector(".avatar");
+            renderer.setSize(avatarHook.clientWidth, avatarHook.clientHeight);
+            avatarHook.appendChild(renderer.domElement);
+
+            scene = new THREE.Scene(); // create scene
+
+            camera = new THREE.PerspectiveCamera(20, window.innerWidth / window.innerHeight, 1, 5000);
+            camera.rotation.y = 180 / 180 * Math.PI;
+            camera.position.x = -550;
+            camera.position.y = 100;
+            camera.position.z = -800;
+
+            let controls = new THREE.OrbitControls(camera, renderer.domElement);
+            // to disable zoom
+            controls.enableZoom = false;
+
+            // to disable rotation
+            //controls.enableRotate = false;
+
+            // to disable pan
+            controls.enablePan = false;
+            controls.update();
+
+            let hlight = new THREE.AmbientLight(0x404040, 13); // whole scene light
+            scene.add(hlight);
+
+            let directionalLight = new THREE.DirectionalLight(0xffffff,1); // directional light
+            directionalLight.position.set(300,400,500);
+            directionalLight.castShadow = true;
+            // scene.add(directionalLight);
+            // let light = new THREE.PointLight(0xc4c4c4,0.5,10);
+            // light.position.set(0,1000,500);
+            // light.castShadow = true;
+            // scene.add(light);
+
+            let mixerGLTF
+            let actionGLTF
+            let meshGLTF
+            let mixerFBX
+            let actionFBX
+            let meshFBX
+            ///**** GLTF ****
+
+            let loader = new THREE.GLTFLoader();
+            loader.load('./Assets/dwarf.gltf', function (object) {
+                meshGLTF =  object.scene
+                mixerGLTF = new THREE.AnimationMixer(object.scene)
+                actionGLTF = mixerGLTF.clipAction(object.animations[0]) // get 1st animation
+                object.scene.children[0].scale.set(1,1,1); // model scale x,y,z
+                object.scene.children[0].position.set(120,-120,0) // model position on scene x,y,z
+                console.log(object)
+                scene.add(object.scene)
+            });
+
+            ///**** FXB *****
+
+            const fbxLoader = new THREE.FBXLoader()
+            fbxLoader.load(
+                './Assets/dwarf.fbx',
+                (object) => {
+                    meshFBX =  object
+                    mixerFBX = new THREE.AnimationMixer(object)
+                    actionFBX = mixerFBX.clipAction(object.animations[0]) // get 1st animation
+                    object.scale.set(1,1,1); // model scale x,y,z
+                    object.position.set(-120,-120,0) // model position on scene x,y,z
+                    console.log(object)
+                    scene.add(object)
+                },
+                (xhr) => {
+                    console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
+                },
+                (error) => {
+                    console.log(error)
+                }
+            )
+
+            avatarHook.addEventListener('click',()=>{ // playing animation on click
+                //onReplaceTexture() // replace model texture
+                actionGLTF.reset()
+                actionGLTF.setLoop(THREE.LoopOnce)
+                actionGLTF.play()
+                //same but for fbx
+                actionFBX.reset()
+                actionFBX.setLoop(THREE.LoopOnce)
+                actionFBX.play()
+            })
+
+            // let vertShader = document.getElementById('vertexShader').innerHTML;
+            // let fragShader = document.getElementById('fragmentShader').innerHTML;
+            //
+            // let uniforms = {
+            //     texture1: { type: 't', value: 0, texture: THREE.ImageUtils.loadTexture( './Assets/texture.png' ) }
+            // };
+            //
+            // let material = new THREE.ShaderMaterial({
+            //     uniforms: uniforms,
+            //     vertexShader: vertShader,
+            //     fragmentShader: fragShader
+            // });
+
+            function onReplaceTexture() {
+			  let textureLoader = new THREE.TextureLoader();
+			  textureLoader.setCrossOrigin("anonymous");
+			  textureLoader.load("./Assets/texture.png", function (texture) {
+
+			    // meshGLTF is a group contains multiple sub-objects. Traverse and apply texture to all.
+			    meshGLTF.traverse(function (child) {
+			      if (child instanceof THREE.Mesh) {
+			        // apply texture
+			        child.material.map = texture
+			        child.material.needsUpdate = true;
+			      }
+			    });
+                //same but for fbx
+                meshFBX.traverse(function (child) {
+			      if (child instanceof THREE.Mesh) {
+			        // apply texture
+			        child.material.map = texture
+			        child.material.needsUpdate = true;
+			      }
+			    });
+
+			  });
+			}
+
+            let clock = new THREE.Clock() // clock for animations
+            animate();
+
+            function animate() {
+                renderer.render(scene, camera); // rerender scene
+                let delta = clock.getDelta();
+                if (mixerGLTF != null) {
+                    mixerGLTF.update(delta); // update mixerGLTF to play next animation frame
+                }
+                if (mixerFBX != null) {
+                    mixerFBX.update(delta); // update mixerGLTF to play next animation frame
+                }
+                requestAnimationFrame(animate);
+            }
+        }
+
+
+
+        init();
+    </script>
+</body>
+</html>
